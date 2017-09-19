@@ -13,6 +13,7 @@ _the openage authors_ are:
 | Full name                      | aliases                      | E-Mail                                        |
 |--------------------------------|------------------------------|-----------------------------------------------|
 | Jonas Jelten                   | TheJJ                        | jj à sft dawt mx                              |
+| Jonathan Shaw                  | Zalladi                      | inspectorjshaw à gmail dawt com               |
 
 
 If you're a first-time commiter, add yourself to the above list. This is not

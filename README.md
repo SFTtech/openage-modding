@@ -8,8 +8,9 @@ for [openage](https://github.com/SFTtech/openage).
 Content
 =======
 
-So far, no information is stored in the repo.
-Start writing a guide!
+| Folder                   | Content                                      |
+|--------------------------|----------------------------------------------|
+| music                    | Scores/Sheet Music                           |
 
 
 License
