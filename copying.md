@@ -14,6 +14,7 @@ _the openage authors_ are:
 |--------------------------------|------------------------------|-----------------------------------------------|
 | Jonas Jelten                   | TheJJ                        | jj à sft dawt mx                              |
 | Jonathan Shaw                  | Zalladi                      | inspectorjshaw à gmail dawt com               |
+| Christoph Heine                | heinezen                     | heinezen à mailbox dawt org                   |
 
 
 If you're a first-time commiter, add yourself to the above list. This is not
