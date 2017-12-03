@@ -11,6 +11,7 @@ Content
 | Folder                   | Content                                      |
 |--------------------------|----------------------------------------------|
 | music                    | Scores/Sheet Music                           |
+| scripts                  | Helpful scripts                              |
 
 
 License
