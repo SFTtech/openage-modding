@@ -2,22 +2,30 @@
 
 # Copyright 2018-2018 the openage authors. See copying.md for legal info.
 
-#
-# Pillow is required for image manipulation. Install with pip:
-#
-#     $ pip install pillow
-#
-# This script transforms an image from cartesian to dimetric projection. An
-# inverse operation is supported. Files for the Genie Engine can be created
-# by using a legacy mode that outputs BMP files.
+"""
+This script transforms an image from cartesian to dimetric projection. An
+inverse operation is supported. Files for the Genie Engine can be created
+by using a legacy mode that outputs BMP files.
 
-import math, argparse
+Pillow is required for image manipulation. Install with pip:
+
+    $ pip install pillow
+"""
+
+import math
+import argparse
 from PIL import Image
 
-parser = argparse.ArgumentParser(description='Transforms an image from cartesian to dimetric projection.')
+parser = argparse.ArgumentParser(description=("Transforms an image "
+                                              "from cartesian to dimetric projection."))
 parser.add_argument('inputfile')
-parser.add_argument('-i', '--inverse', default=False, action='store_true', help='Transforms from dimetric to cartesian')
-parser.add_argument('-l', '--legacy-mode', default=False, action='store_true', dest='legacy_mode', help='Uses BMP instead of PNG as output format and the color PINK (255,0,255) for background instead of the ALPHA channel')
+parser.add_argument('-i', '--inverse', default=False, action='store_true',
+                    help='Transforms from dimetric to cartesian')
+parser.add_argument('-l', '--legacy-mode', default=False, action='store_true',
+                    dest='legacy_mode',
+                    help=("Uses BMP instead of PNG as output format and the "
+                          "color PINK (255,0,255) for background instead of the "
+                          "ALPHA channel"))
 args = parser.parse_args()
 
 inputfile = args.inputfile
@@ -27,33 +35,38 @@ legacy_mode = args.legacy_mode
 org_img = Image.open(inputfile)
 
 def main():
+    """
+    CLI entry point
+    """
 
-    if (inverse):
+    if inverse:
         inverse_transform(org_img)
     else:
         transform(org_img)
 
     return 0
 
-# Flat to dimetric transformation
-def transform(org_img):
+def transform(img):
+    """
+    Flat to dimetric transformation.
+    """
 
-    res_x, res_y = org_img.size
+    res_x, res_y = img.size
 
     # The transformed image is 2 times the size of the original
-    if (legacy_mode):
+    if legacy_mode:
         # We need the background to be pink in legacy mode
-        tr_img = Image.new( 'RGB', (2 * res_x, res_y), (255,0,255))
+        tr_img = Image.new('RGB', (2 * res_x, res_y), (255, 0, 255))
     else:
-        tr_img = Image.new( 'RGBA', (2 * res_x, res_y), (0,0,0,0))
+        tr_img = Image.new('RGBA', (2 * res_x, res_y), (0, 0, 0, 0))
 
     # Get the pixels
-    org_pixels = org_img.load()
+    org_pixels = img.load()
     tr_pixels = tr_img.load()
 
     # Transform the image
-    for x in range(0, res_x):
-        for y in range(0, res_y):
+    for x_coord in range(0, res_x):
+        for y_coord in range(0, res_y):
 
             # Every pixel is transformed with simple matrix
             # multiplication. The projection matrix is
@@ -63,57 +76,59 @@ def transform(org_img):
             #
             # The x result has to be offset by the x value of
             # the original image.
-            c1 = (1 * x + res_x - 1) - 1 * y
-            if (x+y < res_y):
-                c2 = math.ceil(0.5 * x + 0.5 * y)
+            tr_x = (1 * x_coord + res_x - 1) - 1 * y_coord
+            if x_coord+y_coord < res_y:
+                tr_y = math.ceil(0.5 * x_coord + 0.5 * y_coord)
             else:
-                c2 = math.floor(0.5 * x + 0.5 * y)
-            
-            print(x,y,c1,c2)
+                tr_y = math.floor(0.5 * x_coord + 0.5 * y_coord)
 
-            tr_pixels[c1,c2] = org_pixels[x,y]
+            tr_pixels[tr_x, tr_y] = org_pixels[x_coord, y_coord]
 
     to_file(tr_img)
 
     return 0
 
-# Dimetric to flat transformation
-def inverse_transform(org_img):
+def inverse_transform(img):
+    """
+    Dimetric to flat transformation.
+    """
 
-    res_x, res_y = org_img.size
+    res_x, res_y = img.size
 
     tr_res_x = (int)((1/2) * res_x)
 
-    if (legacy_mode):
-        tr_img = Image.new( 'RGB', (tr_res_x, res_y), (255,0,255))
+    if legacy_mode:
+        tr_img = Image.new('RGB', (tr_res_x, res_y), (255, 0, 255))
     else:
-        tr_img = Image.new( 'RGBA', (tr_res_x, res_y), (0,0,0,0))
+        tr_img = Image.new('RGBA', (tr_res_x, res_y), (0, 0, 0, 0))
 
     # Get the pixels
-    org_pixels = org_img.load()
+    org_pixels = img.load()
     tr_pixels = tr_img.load()
 
     # Transform the image
-    for x in range(0, tr_res_x):
-        for y in range(0, res_y):
+    for x_coord in range(0, tr_res_x):
+        for y_coord in range(0, res_y):
 
             # This uses the exact calculation as in transform()
-            c1 = (1 * x + tr_res_x - 1) - 1 * y
-            if (x+y < res_y):
-                c2 = math.ceil(0.5 * x + 0.5 * y)
+            tr_x = (1 * x_coord + tr_res_x - 1) - 1 * y_coord
+            if x_coord+y_coord < res_y:
+                tr_y = math.ceil(0.5 * x_coord + 0.5 * y_coord)
             else:
-                c2 = math.floor(0.5 * x + 0.5 * y)
+                tr_y = math.floor(0.5 * x_coord + 0.5 * y_coord)
 
-            # We just need to swap (c1,c2) and (x,y) from the other
+            # We just need to swap (tr_x,tr_y) and (x,y) from the other
             # function to revert the projection
-            tr_pixels[x,y] = org_pixels[c1,c2]
+            tr_pixels[x_coord, y_coord] = org_pixels[tr_x, tr_y]
 
     to_file(tr_img)
 
     return 0
 
-# Writes the transformed result to file
 def to_file(img):
+    """
+    Writes the transformed result to file.
+    """
 
     # Use this for debugging:
     # img.show()
@@ -121,11 +136,11 @@ def to_file(img):
     output_name = inputfile.split(".")[0] + "_t"
 
     try:
-       if (legacy_mode):
+       if legacy_mode:
            img.save(output_name + ".bmp", "BMP")
        else:
            img.save(output_name + ".png", "PNG")
-    except:
+    except IOError:
        print("File could not be written")
 
     return 0
