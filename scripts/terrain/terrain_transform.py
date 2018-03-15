@@ -16,37 +16,48 @@ import math
 import argparse
 from PIL import Image
 
-parser = argparse.ArgumentParser(description=("Transforms an image "
-                                              "from cartesian to dimetric projection."))
-parser.add_argument('inputfile')
-parser.add_argument('-i', '--inverse', default=False, action='store_true',
-                    help='Transforms from dimetric to cartesian')
-parser.add_argument('-l', '--legacy-mode', default=False, action='store_true',
-                    dest='legacy_mode',
-                    help=("Uses BMP instead of PNG as output format and the "
-                          "color PINK (255,0,255) for background instead of the "
-                          "ALPHA channel"))
-args = parser.parse_args()
-
-inputfile = args.inputfile
-inverse = args.inverse
-legacy_mode = args.legacy_mode
-
-org_img = Image.open(inputfile)
-
 def main():
     """
     CLI entry point
     """
 
+    args = get_args()
+
+    inputfile = args.inputfile
+    inverse = args.inverse
+    legacy_mode = args.legacy_mode
+
+    org_img = Image.open(inputfile)
+
     if inverse:
-        inverse_transform(org_img)
+        tr_img = inverse_transform(org_img, legacy_mode)
     else:
-        transform(org_img)
+        tr_img = transform(org_img, legacy_mode)
+
+    output_name = inputfile.split(".")[0] + "_t"
+
+    to_file(tr_img, legacy_mode, output_name)
 
     return 0
 
-def transform(img):
+def get_args():
+    """
+    Get CLI arguments.
+    """
+
+    parser = argparse.ArgumentParser(description=("Transforms an image from cartesian "
+                                                  "to dimetric projection."))
+    parser.add_argument('inputfile')
+    parser.add_argument('-i', '--inverse', default=False, action='store_true',
+                        help='Transforms from dimetric to cartesian')
+    parser.add_argument('-l', '--legacy-mode', default=False, action='store_true',
+                        dest='legacy_mode',
+                        help=("Uses BMP instead of PNG as output format and the "
+                              "color PINK (255,0,255) for background instead of the "
+                              "ALPHA channel"))
+    return parser.parse_args()
+
+def transform(img, legacy_mode):
     """
     Flat to dimetric transformation.
     """
@@ -84,11 +95,10 @@ def transform(img):
 
             tr_pixels[tr_x, tr_y] = org_pixels[x_coord, y_coord]
 
-    to_file(tr_img)
 
-    return 0
+    return tr_img
 
-def inverse_transform(img):
+def inverse_transform(img, legacy_mode):
     """
     Dimetric to flat transformation.
     """
@@ -121,11 +131,9 @@ def inverse_transform(img):
             # function to revert the projection
             tr_pixels[x_coord, y_coord] = org_pixels[tr_x, tr_y]
 
-    to_file(tr_img)
+    return tr_img
 
-    return 0
-
-def to_file(img):
+def to_file(img, legacy_mode, filename):
     """
     Writes the transformed result to file.
     """
@@ -133,15 +141,13 @@ def to_file(img):
     # Use this for debugging:
     # img.show()
 
-    output_name = inputfile.split(".")[0] + "_t"
-
     try:
-       if legacy_mode:
-           img.save(output_name + ".bmp", "BMP")
-       else:
-           img.save(output_name + ".png", "PNG")
+        if legacy_mode:
+            img.save(filename + ".bmp", "BMP")
+        else:
+            img.save(filename + ".png", "PNG")
     except IOError:
-       print("File could not be written")
+        print("File could not be written")
 
     return 0
 
