@@ -11,7 +11,7 @@
 # inverse operation is supported. Files for the Genie Engine can be created
 # by using a legacy mode that outputs BMP files.
 
-import argparse
+import math, argparse
 from PIL import Image
 
 parser = argparse.ArgumentParser(description='Transforms an image from cartesian to dimetric projection.')
@@ -63,8 +63,13 @@ def transform(org_img):
             #
             # The x result has to be offset by the x value of
             # the original image.
-            c1 = (1 * x + res_x) - 1 * y
-            c2 = 0.5 * x + 0.5 * y
+            c1 = (1 * x + res_x - 1) - 1 * y
+            if (x+y < res_y):
+                c2 = math.ceil(0.5 * x + 0.5 * y)
+            else:
+                c2 = math.floor(0.5 * x + 0.5 * y)
+            
+            print(x,y,c1,c2)
 
             tr_pixels[c1,c2] = org_pixels[x,y]
 
@@ -93,8 +98,11 @@ def inverse_transform(org_img):
         for y in range(0, res_y):
 
             # This uses the exact calculation as in transform()
-            c1 = (1 * x + tr_res_x) - 1 * y
-            c2 = 0.5 * x + 0.5 * y
+            c1 = (1 * x + tr_res_x - 1) - 1 * y
+            if (x+y < res_y):
+                c2 = math.ceil(0.5 * x + 0.5 * y)
+            else:
+                c2 = math.floor(0.5 * x + 0.5 * y)
 
             # We just need to swap (c1,c2) and (x,y) from the other
             # function to revert the projection
