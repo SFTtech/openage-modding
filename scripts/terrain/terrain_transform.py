@@ -12,8 +12,9 @@ Pillow is required for image manipulation. Install with pip:
     $ pip install pillow
 """
 
-import math
 import argparse
+import math
+import sys
 from PIL import Image
 
 def main():
@@ -21,13 +22,15 @@ def main():
     CLI entry point
     """
 
-    args = getargs()
+    args = get_args()
 
     inputfile = args.inputfile
     inverse = args.inverse
     palette = args.palette_file
 
     org_img = Image.open(inputfile)
+
+    check_file(org_img, inverse)
 
     if inverse:
         tr_img = inverse_transform(org_img, palette)
@@ -40,7 +43,7 @@ def main():
 
     return 0
 
-def getargs():
+def get_args():
     """
     Get CLI arguments.
     """
@@ -55,6 +58,24 @@ def getargs():
                               "color PINK (255,0,255) for background instead of the "
                               "ALPHA channel. Requires an image with the AoE2 palette."))
     return parser.parse_args()
+
+def check_file(img, inverse):
+    """
+    Check if image has the correct ratio.
+    """
+
+    res_x, res_y = img.size
+
+    if inverse:
+        if res_x != 2 * res_y:
+            print("Error: Image requires ratio of 2:1")
+            sys.exit()
+    else:
+        if res_x != res_y:
+            print("Error: Image requires ratio of 1:1")
+            sys.exit()
+
+    return 0
 
 def transform(img, palette):
     """
@@ -108,7 +129,8 @@ def inverse_transform(img, palette):
 
     tr_res_x = (int)((1/2) * res_x)
 
-    if palette != None:
+    if palette:
+        # We need the background to be pink in legacy mode
         tr_img = Image.new('RGB', (tr_res_x, res_y), (255, 0, 255))
     else:
         tr_img = Image.new('RGBA', (tr_res_x, res_y), (0, 0, 0, 0))
@@ -132,7 +154,7 @@ def inverse_transform(img, palette):
             # function to revert the projection
             tr_pixels[x_coord, y_coord] = org_pixels[tr_x, tr_y]
 
-    if palette != None:
+    if palette:
         tr_img = tr_img.quantize(colors=256, palette=Image.open(palette))
 
     return tr_img
