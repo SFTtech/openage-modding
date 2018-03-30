@@ -173,8 +173,10 @@ def to_file(img, palette, filename):
     try:
         if palette:
             img.save(filename + ".bmp", "BMP")
+            print("Success: result saved as {:s}.bmp".format(filename))
         else:
             img.save(filename + ".png", "PNG")
+            print("Success: result saved as {:s}.png".format(filename))
     except IOError:
         print("File could not be written")
 
