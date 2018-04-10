@@ -1,11 +1,20 @@
-# Copyright 2017-2017 the openage authors. See copying.md for legal info.
+# Copyright 2017-2018 the openage authors. See copying.md for legal info.
 #
-# Usage for this script:
-#  blender --background --python create_sprites.py -- \
-#          --cameras Camera0,Camera90,Camera180 \
+# Usage:
+#  blender --background <filename> --python create_sprites.py -- \
+#          -m <mesh-name> \
+#          -n <number-of-sprites> \
+#          --legacy \
 #
 
-import sys, bpy, argparse
+"""
+Script for creating sprites from a blender model.
+"""
+
+from math import radians
+import sys
+import argparse
+import bpy
 
 # This part is necessary to pass arguments to the python script.
 # Blender ignores every argument after "--".
@@ -18,43 +27,93 @@ else:
 
 # Parsing arguments
 parser = argparse.ArgumentParser()
-parser.add_argument("-c", "--cameras",
-                    help=("only render cameras with these names; "
-                        "separate by using ','"))
+parser.add_argument("-n", default=8, type=int,
+                    help="number of sprites per model; default = 8")
+parser.add_argument("--legacy", default=False, action='store_true',
+                    help=("only creates 5 sprites of the model (180 degrees); "
+                          "used in Genie Engine"))
+parser.add_argument("-m", "--model", type=str, default="Model",
+                    help=("name of the model in blender;"
+                          "default = Model"))
 args = parser.parse_args(argv)
 
-cameras = []
+sprites = args.n
+legacy_mode = args.legacy
+model_name = args.model
 
-if args.cameras is not None:
-    cameras = args.cameras.split(",")
-    print(cameras)
+# Get the model we want to render
+try:
+    model = bpy.data.objects[model_name]
+except KeyError:
+    print("No model with name \"{:s}\" found".format(model_name))
+    bpy.ops.wm.quit_blender()
 
-index = 0
+model_location = model.matrix_world.to_translation()
 
-for obj in bpy.data.objects:
-    
-    if obj.type == 'CAMERA' and (not cameras
-                                 or obj.name in cameras):
-        print("Creating sprite for", obj.name)
+# Create a pivot point for our model
+bpy.ops.object.empty_add(location=model_location)
+center = bpy.context.object
 
-        bpy.context.scene.camera = obj
+# Create the Camera with rotation (60 deg, 0 deg, 45 deg)
+bpy.ops.object.camera_add(rotation=(radians(60), 0, radians(45)))
+camera = bpy.context.object
+camera.data.type = 'ORTHO'
 
-        # Set camera to orthographic
-        obj.data.type = 'ORTHO'
-        
-        # Set file format to PNG if that wasn't default
-        bpy.context.scene.render.image_settings.file_format = 'PNG'
-        
-        # Set background to alpha channel
-        bpy.context.scene.render.alpha_mode = 'TRANSPARENT' 
-        bpy.context.scene.render.image_settings.color_mode ='RGBA'
-        
-        # Save image file
-        filename = bpy.path.basename(bpy.data.filepath)
-        filename = filename.split('.')[0]
-        path = '//' + filename + '/' + filename + '_' + str(index)
-        bpy.context.scene.render.filepath = path 
+# Move vcamera with pivot point
+camera.parent = center
 
-        bpy.ops.render.render(write_still=True)
+# Set the created camera as active for the scene
+bpy.context.scene.camera = camera
 
-        index += 1
+# Align the camera to the model
+model.select = True
+bpy.ops.view3d.camera_to_view_selected()
+model.select = False
+camera.select = False
+
+# Create start and end of animation
+bpy.context.scene.frame_start = 0
+bpy.context.scene.frame_end = sprites - 1
+
+# Add keyframes for pivot point
+center.rotation_euler = (0, 0, radians(-45))
+center.keyframe_insert(data_path="rotation_euler", frame=0)
+
+center.rotation_euler = (0, 0, radians(360-45))
+center.keyframe_insert(data_path="rotation_euler", frame=sprites)
+
+# Set interpolation to linear to transition by a constant
+# angle between frames
+fcurves = center.animation_data.action.fcurves
+
+for fc in fcurves:
+    for keyframe in fc.keyframe_points:
+        keyframe.interpolation = 'LINEAR'
+
+# Set output format
+bpy.context.scene.render.image_settings.file_format = 'PNG'
+bpy.context.scene.render.alpha_mode = 'TRANSPARENT'
+bpy.context.scene.render.image_settings.color_mode = 'RGBA'
+
+filename = bpy.path.basename(bpy.data.filepath)
+filename = filename.split('.')[0]
+
+angle = 360 / sprites
+
+frames_to_render = sprites
+
+# Only render 180 degrees in legacy mode
+if legacy_mode:
+    frames_to_render = (sprites // 2) + 1
+
+for frame in range(0, frames_to_render):
+
+    bpy.context.scene.frame_set(frame)
+
+    # File is put in a folder with the initial name
+    # of the processed blender file
+    path = '//' + filename + '/' + filename + '_' + str(int(frame * angle))
+    bpy.context.scene.render.filepath = path
+
+    # Render the result
+    bpy.ops.render.render(write_still=True)
