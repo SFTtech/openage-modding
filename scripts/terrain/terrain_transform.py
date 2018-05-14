@@ -92,6 +92,7 @@ def transform(img, palette):
         tr_img = Image.new('RGBA', (2 * res_x, res_y), (0, 0, 0, 0))
 
     # Get the pixels
+    img = img.rotate(90)
     org_pixels = img.load()
     tr_pixels = tr_img.load()
 
@@ -154,6 +155,8 @@ def inverse_transform(img, palette):
             # function to revert the projection
             tr_pixels[x_coord, y_coord] = org_pixels[tr_x, tr_y]
 
+    tr_img = tr_img.rotate(270)
+
     if palette:
         tr_img = tr_img.quantize(colors=256, palette=Image.open(palette))
 
@@ -170,8 +173,10 @@ def to_file(img, palette, filename):
     try:
         if palette:
             img.save(filename + ".bmp", "BMP")
+            print("Success: result saved as {:s}.bmp".format(filename))
         else:
             img.save(filename + ".png", "PNG")
+            print("Success: result saved as {:s}.png".format(filename))
     except IOError:
         print("File could not be written")
 
