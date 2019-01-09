@@ -1,9 +1,13 @@
-# Copyright 2017-2018 the openage authors. See copying.md for legal info.
+# Copyright 2017-2019 the openage authors. See copying.md for legal info.
 #
 # Usage:
 #  blender --background <filename> --python create_sprites.py -- \
+#          -a <number-of-angles> \
+#          -f <number-of-frames> \
+#          -t <track-names> \
 #          -m <mesh-names> \
-#          -n <number-of-sprites> \
+#          --armature <armature-name> \
+#          --resolution WIDTHxHEIGHT \
 #          --legacy \
 #
 
@@ -27,8 +31,10 @@ def main():
 
     args = parse_args()
 
-    sprite_count = args.n
+    angle_count = args.angles
     legacy_mode = args.legacy
+    animation_frame_count = args.frames
+    armature = args.armature
     if args.models is None:
         model_names = list()
     else:
@@ -42,23 +48,38 @@ def main():
     for model in models:
         model_collection.objects.link(model)
 
-    nla_tracks = get_nla_tracks()
+    if args.tracks is None:
+        track_names = list()
+    else:
+        track_names = str(args.tracks).split(",")
+
+    raw_resolution = args.resolution.split("x")
+
+    try:
+        res_x = int(raw_resolution[0])
+        res_y = int(raw_resolution[1])
+    except ValueError:
+        exit_blender("%s is not an accepted resolution." % (args.resolution))
+
+    resolution = (res_x, res_y)
+
+    selected_nla_tracks, all_nla_tracks = get_nla_tracks(track_names, armature)
 
     pivot_point = find_centroid(model_collection)
     print(pivot_point)
 
     pivot = create_camera(pivot_point)
 
-    scene_config()
+    scene_config(resolution)
 
-    position_camera(model_collection, pivot, nla_tracks)
+    position_camera(model_collection, pivot, all_nla_tracks, angle_count)
 
-    render_animations(pivot, nla_tracks)
+    render_animations(pivot, selected_nla_tracks, angle_count, animation_frame_count, legacy_mode)
 
     print("Finished in %.4f seconds" % (time.time() - time_start))
 
 
-def scene_config():
+def scene_config(resolution):
     """
     Sets up the basic parameters for rendering.8
     """
@@ -67,8 +88,8 @@ def scene_config():
 
     scene.render.image_settings.file_format = 'PNG'
     scene.render.alpha_mode = 'TRANSPARENT'
-    scene.render.resolution_x = 1280
-    scene.render.resolution_y = 720
+    scene.render.resolution_x = resolution[0]
+    scene.render.resolution_y = resolution[1]
 
 
 def parse_args():
@@ -86,15 +107,26 @@ def parse_args():
         argv = argv[argv.index("--") + 1:]
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("-n", default=8, type=int,
-                        help="number of sprites per model; default = 8")
+    parser.add_argument("-a", "--angles", default=8, type=int,
+                        help="number of angles per frame; default = 8")
     parser.add_argument("--legacy", default=False, action='store_true',
                         help=("only creates 5 sprites of the model (180 degrees); "
                               "used in Genie Engine"))
     parser.add_argument("-m", "--models", type=str,
-                        help=("only render Models with the specified name."
+                        help=("only render models with the specified name."
                               "separate with ,"))
+    parser.add_argument("-t", "--tracks", type=str,
+                        help=("only render animations from the specified tracks."
+                              "separate with ,"))
+    parser.add_argument("-f", "--frames", default=10, type=int,
+                        help=("number of frames per animation; default = 10"))
+    parser.add_argument("--armature", default="Armature", type=str,
+                        help=("name of the armature; default = \"Armature\""))
+    parser.add_argument("--resolution", default="1280x720", type=str,
+                        help=("target resolution for one rendered image;"
+                              "inputs as WIDTHxHEIGHT ; default = 1280x720"))
     return parser.parse_args(argv)
+
 
 def get_models(model_names):
     """
@@ -111,43 +143,58 @@ def get_models(model_names):
     else:
         for name in model_names:
             try:
-                model = bpy.data.object[name]
-                if model.type == 'MESH':
-                    models.append(model)
+                model = bpy.data.objects[name]
+                models.append(model)
             except KeyError:
-                print("No model with name \"{:s}\" found".format(name))
-                bpy.ops.wm.quit_blender()
+                exit_blender("No model with name \"%s\" found" % (name))
 
     return models
 
 
-def get_nla_tracks():
+def get_nla_tracks(track_names, armature_name):
     """
-    Returns all non-stashed NLA tracks.
+    Returns all NLA tracks and all selected NLA tracks.
     """
 
-    for obj in bpy.context.scene.objects:
-        if obj.type == 'ARMATURE':
-            armature = obj
+    try:
+        armature = bpy.data.objects[armature_name]
+    except KeyError:
+        exit_blender("No armature with name \"%s\" found" % (armature_name))
 
-    tracks = list()
+    all_tracks = list()
+    selected_tracks = list()
 
     for track in armature.animation_data.nla_tracks:
 
         # Mute all tracks for now
         track.mute = True
 
-        # Skip temporary NLA tracks
+        # If all tracks are rendered, select only non-stashed ones
         if not track.name.startswith("[Action Stash]"):
-            tracks.append(track)
-            print(track.name)
 
-    return tracks
+            all_tracks.append(track)
+
+            # If track names were given, select all tracks that were specified
+            if track.name in track_names:
+                selected_tracks.append(track)
+
+    print(selected_tracks, all_tracks)
+
+    # If no track names were given, select all tracks
+    if len(track_names) == 0:
+        selected_tracks = all_tracks
+
+    print(selected_tracks, all_tracks)
+
+    if len(all_tracks) == 0 or len(selected_tracks) == 0:
+        exit_blender("No matching tracks found. Exiting..")
+
+    return selected_tracks, all_tracks
 
 
 def find_centroid(collection):
     """
-    Find the centre of all objects in a collection by
+    Find the center of all objects in a collection by
     calculating the average of the coordinates.
     """
 
@@ -185,6 +232,7 @@ def create_camera(pivot_point):
     bpy.ops.object.empty_add(location=pivot_point)
     pivot = bpy.context.object
 
+    # Dimetric perspective rendering
     bpy.ops.object.camera_add(rotation=(radians(60), 0, radians(45)))
     camera = bpy.context.object
     camera.data.type = 'ORTHO'
@@ -193,6 +241,8 @@ def create_camera(pivot_point):
 
     bpy.context.scene.camera = camera
 
+    # Parent lights from the scene so that they rotate
+    # with the camera.
     for obj in bpy.context.scene.objects:
         if obj.type == 'LIGHT':
             obj.parent = pivot
@@ -200,36 +250,52 @@ def create_camera(pivot_point):
     return pivot
 
 
-def position_camera(models, pivot, nla_tracks):
+def position_camera(models, pivot, nla_tracks, angle_count):
     """
     Find the optimal position for the camera.
 
-    The script iterates through all frames to find the closest
-    position where all objects are still fully in view in every
-    frame.
+    The script iterates through all animations to find
+    a "bounding box" in that all models fit, regardless
+    of frame and animation. The camera is positioned
+    to center the bounding box at all times.
     """
 
-    # We don't save the best position directly, since we are
-    # also dependent on the pivot object. Therefore, we save
-    # the frame and angle where it occured.
-    best_track = None
-    best_frame = -1
-    best_angle = 0
-    best_scale = 0.0
+    # Vertices of the bounding box
+    vertices = [(0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 0), (0, 0, 1), (0, 1, 1), (1, 0, 1), (1, 1, 1)]
 
-    # Select all models to fit the camera to them
-    for model in models.all_objects:
-        model.select_set(True)
+    # Faces of the bounding box: bottom, top, x_left, x_right, y_left, y_right
+    faces = [(0, 1, 3, 2), (4, 5, 7, 6), (0, 1, 5, 4), (2, 3, 7, 6), (0, 2, 6, 4), (1, 3, 7, 5)]
+
+    # Create bounding box in scene
+    bb_mesh = bpy.data.meshes.new("Bounding Box")
+    bounding_box = bpy.data.objects.new("Bounding Box", bb_mesh)
+    bounding_box.location = (0, 0, 0)
+    bpy.context.scene.collection.objects.link(bounding_box)
+    bb_mesh.from_pydata(vertices, [], faces)
+    bb_mesh.update(calc_edges=True)
+    bounding_box.display_type = 'WIRE'
 
     scene = bpy.context.scene
     camera = scene.camera
+
+    # Use these variables to save the most extreme coordinates
+    # found for the animation.
+    highest_x = 0.0
+    highest_y = 0.0
+    highest_z = 0.0
+
+    lowest_x = 0.0
+    lowest_y = 0.0
+    lowest_z = 0.0
+
+    # Deselect all objects
+    for obj in bpy.data.objects:
+        obj.select_set(False)
 
     for track in nla_tracks:
 
         # Activate the track
         track.mute = False
-
-        print(track.name)
 
         start_frame = scene.frame_start
         end_frame = ceil(track.strips[-1].frame_end)
@@ -237,34 +303,44 @@ def position_camera(models, pivot, nla_tracks):
         # Test every frame
         for frame in range(start_frame, end_frame + 1):
 
-            angle = 0
-            angle_distance = 45
-            index = 0
-
             scene.frame_set(frame)
+            scene.update()
 
-            # Test every angle
-            while angle < 315:
+            for model in models.all_objects:
 
-                angle = angle_distance * index
-                pivot.rotation_euler = (0, 0, radians(angle))
+                # Copy the mesh at the current position of the frame
+                # and assign the copy to a new object.
+                # By doing this, we can extract the current location
+                # of the vertices in the meshes, which is otherwise
+                # impossible.
+                cur_mesh = model.to_mesh(bpy.context.depsgraph, True)
+                cur_mesh.transform(model.matrix_world)
+                pos_obj = bpy.data.objects.new("Test", cur_mesh)
+                bpy.context.scene.collection.objects.link(pos_obj)
 
-                # Fits the view of the camera to all selected objects
-                bpy.ops.view3d.camera_to_view_selected()
+                # Search every vertex to find the most
+                # extreme coordinates in the animations
+                for vertex in pos_obj.data.vertices:
 
-                # Since the angle is fixed, the camera scale should give indication of the
-                # farthest position away from the objects.
-                scale = camera.data.ortho_scale
+                    location = vertex.co
 
-                if scale > best_scale:
+                    if location[0] > highest_x:
+                        highest_x = location[0]
+                    if location[1] > highest_y:
+                        highest_y = location[1]
+                    if location[2] > highest_z:
+                        highest_z = location[2]
 
-                    best_track = track
-                    best_frame = frame
-                    best_angle = angle
-                    best_scale = scale
-                    print(frame, angle, camera.location, scale)
+                    if location[0] < lowest_x:
+                        lowest_x = location[0]
+                    if location[1] < lowest_y:
+                        lowest_y = location[1]
+                    if location[2] < lowest_z:
+                        lowest_z = location[2]
 
-                index += 1
+                # Delete the copied mesh
+                pos_obj.select_set(True)
+                bpy.ops.object.delete()
 
         # Go back through the animation frame by frame. If we
         # don't do this, it can create problems with keyframe data.
@@ -279,36 +355,60 @@ def position_camera(models, pivot, nla_tracks):
         # Mute the track
         track.mute = True
 
-    # Go to the frame and track where the best camera position
-    # was found. Then adjust the camera again.
-    best_track.mute = False
+    # Create the bounding box from the values we found
+    bb_vertices = bounding_box.data.vertices
 
-    frame = scene.frame_start
+    bb_vertices[0].co = lowest_x, lowest_y, lowest_z
+    bb_vertices[1].co = lowest_x, highest_y, lowest_z
+    bb_vertices[2].co = highest_x, lowest_y, lowest_z
+    bb_vertices[3].co = highest_x, highest_y, lowest_z
+    bb_vertices[4].co = lowest_x, lowest_y, highest_z
+    bb_vertices[5].co = lowest_x, highest_y, highest_z
+    bb_vertices[6].co = highest_x, lowest_y, highest_z
+    bb_vertices[7].co = highest_x, highest_y, highest_z
 
-    while frame < best_frame:
+    print(bb_vertices[0].co)
 
-        scene.frame_set(frame)
+    # Sellect bounding box, so we can adjus the camera to it
+    bounding_box.select_set(True)
 
-        frame += 1
+    best_angle = 0
+    best_scale = 0.0
 
+    angle = 0
+    angle_distance = 360 / angle_count
+    index = 0
+
+    # Test every angle for the best camera position
+    while angle < (360 - angle_distance):
+
+        angle = angle_distance * index
+        pivot.rotation_euler = (0, 0, radians(angle))
+
+        # Fits the view of the camera to all selected objects
+        bpy.ops.view3d.camera_to_view_selected()
+
+        # Since the angle is fixed, the camera scale should give indication of the
+        # farthest position away from the objects.
+        scale = camera.data.ortho_scale
+
+        if scale > best_scale:
+
+            best_angle = angle
+            best_scale = scale
+
+        index += 1
+
+    # Go to the angle where the best camera position
+    # was found. Then adjust the camera to it.
     pivot.rotation_euler = (0, 0, radians(best_angle))
     bpy.ops.view3d.camera_to_view_selected()
-    print(camera.location)
 
-    # Return to the starting frame and rotate camera
-    # back to default position.
-    while frame > start_frame - 1:
-
-        scene.frame_set(frame)
-
-        frame -= 1
-
+    # Return to the starting position
     pivot.rotation_euler = (0, 0, 0)
-    print(camera.location)
-    best_track.mute = True
 
 
-def render_frame(frame_num, pivot, track_name):
+def render_frame(frame_num, pivot, track_name, angle_count, legacy):
     """
     Render one frame from all sides.
     """
@@ -321,10 +421,15 @@ def render_frame(frame_num, pivot, track_name):
     scene.frame_set(frame_num)
 
     angle = 0
-    angle_distance = 45
+    angle_distance = 360 / angle_count
     index = 0
 
-    while angle < 315:
+    # In legacy mode, only render half of the sprites
+    max_rotation = 360
+    if legacy:
+        max_rotation = 180 + angle_distance
+
+    while angle < (max_rotation - angle_distance):
 
         angle = angle_distance * index
         pivot.rotation_euler = (0, 0, radians(angle))
@@ -335,12 +440,12 @@ def render_frame(frame_num, pivot, track_name):
         index += 1
 
 
-def render_animations(pivot, tracks):
+def render_animations(pivot, tracks, angle_count, animation_frame_count, legacy):
     """
     Renders the animations given NLA tracks.
     """
 
-    animation_frames = 10
+    animation_frames = animation_frame_count
 
     scene = bpy.context.scene
 
@@ -359,7 +464,7 @@ def render_animations(pivot, tracks):
 
             # print(rendered_frame)
 
-            render_frame(rendered_frame, pivot, track.name)
+            render_frame(rendered_frame, pivot, track.name, angle_count, legacy)
 
         frame = rendered_frame
 
@@ -371,6 +476,16 @@ def render_animations(pivot, tracks):
             frame -= 1
 
         track.mute = True
+
+
+def exit_blender(message):
+    """
+    Prints a message in the terminal and quits blender.
+    """
+
+    print("\n%s" % (message))
+    sys.exit(1)
+
 
 if __name__ == "__main__":
     main()
