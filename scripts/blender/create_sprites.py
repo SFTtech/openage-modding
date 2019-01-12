@@ -66,7 +66,6 @@ def main():
     selected_nla_tracks, all_nla_tracks = get_nla_tracks(track_names, armature)
 
     pivot_point = find_centroid(model_collection)
-    print(pivot_point)
 
     pivot = create_camera(pivot_point)
 
@@ -122,7 +121,7 @@ def parse_args():
                         help=("number of frames per animation; default = 10"))
     parser.add_argument("--armature", default="Armature", type=str,
                         help=("name of the armature; default = \"Armature\""))
-    parser.add_argument("--resolution", default="1280x720", type=str,
+    parser.add_argument("--resolution", default="300x300", type=str,
                         help=("target resolution for one rendered image;"
                               "inputs as WIDTHxHEIGHT ; default = 1280x720"))
     return parser.parse_args(argv)
@@ -139,7 +138,6 @@ def get_models(model_names):
         for obj in bpy.context.scene.objects:
             if obj.type == 'MESH':
                 models.append(obj)
-                print(obj)
     else:
         for name in model_names:
             try:
@@ -178,13 +176,9 @@ def get_nla_tracks(track_names, armature_name):
             if track.name in track_names:
                 selected_tracks.append(track)
 
-    print(selected_tracks, all_tracks)
-
     # If no track names were given, select all tracks
     if len(track_names) == 0:
         selected_tracks = all_tracks
-
-    print(selected_tracks, all_tracks)
 
     if len(all_tracks) == 0 or len(selected_tracks) == 0:
         exit_blender("No matching tracks found. Exiting..")
@@ -232,8 +226,12 @@ def create_camera(pivot_point):
     bpy.ops.object.empty_add(location=pivot_point)
     pivot = bpy.context.object
 
+    # Get the orientation of the original scene camera
+    orig_camera = bpy.context.scene.camera
+    orig_camera_rotation_z = orig_camera.matrix_world.to_euler()[2]
+
     # Dimetric perspective rendering
-    bpy.ops.object.camera_add(rotation=(radians(60), 0, radians(45)))
+    bpy.ops.object.camera_add(rotation=(radians(60), 0, orig_camera_rotation_z))
     camera = bpy.context.object
     camera.data.type = 'ORTHO'
 
@@ -245,7 +243,12 @@ def create_camera(pivot_point):
     # with the camera.
     for obj in bpy.context.scene.objects:
         if obj.type == 'LIGHT':
+
+            # If the light was parented before, this will
+            # move it to its intended position.
+            location = obj.matrix_world.to_translation()
             obj.parent = pivot
+            obj.matrix_world.translation = location
 
     return pivot
 
@@ -261,10 +264,12 @@ def position_camera(models, pivot, nla_tracks, angle_count):
     """
 
     # Vertices of the bounding box
-    vertices = [(0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 0), (0, 0, 1), (0, 1, 1), (1, 0, 1), (1, 1, 1)]
+    vertices = [(0, 0, 0), (0, 1, 0), (1, 0, 0), (1, 1, 0),
+                (0, 0, 1), (0, 1, 1), (1, 0, 1), (1, 1, 1)]
 
     # Faces of the bounding box: bottom, top, x_left, x_right, y_left, y_right
-    faces = [(0, 1, 3, 2), (4, 5, 7, 6), (0, 1, 5, 4), (2, 3, 7, 6), (0, 2, 6, 4), (1, 3, 7, 5)]
+    faces = [(0, 1, 3, 2), (4, 5, 7, 6), (0, 1, 5, 4),
+             (2, 3, 7, 6), (0, 2, 6, 4), (1, 3, 7, 5)]
 
     # Create bounding box in scene
     bb_mesh = bpy.data.meshes.new("Bounding Box")
@@ -355,22 +360,41 @@ def position_camera(models, pivot, nla_tracks, angle_count):
         # Mute the track
         track.mute = True
 
+    # Calculate the distances between the pivot point
+    # and the extreme positions.
+    pivot_location = pivot.location
+
+    distance_highest_x = abs(highest_x - pivot_location.x)
+    distance_highest_y = abs(highest_y - pivot_location.y)
+    distance_highest_z = abs(highest_z - pivot_location.z)
+
+    distance_lowest_x = abs(lowest_x - pivot_location.x)
+    distance_lowest_y = abs(lowest_y - pivot_location.y)
+    distance_lowest_z = abs(lowest_z - pivot_location.z)
+
+    # The higher distance is chosen for the dimension
+    # of the bounding box.
+    if distance_highest_x > distance_lowest_x:
+        dim_x = distance_highest_x
+    else:
+        dim_x = distance_lowest_x
+
+    if distance_highest_y > distance_lowest_y:
+        dim_y = distance_highest_y
+    else:
+        dim_y = distance_lowest_y
+
+    if distance_highest_z > distance_lowest_z:
+        dim_z = distance_highest_z
+    else:
+        dim_z = distance_lowest_z
+
     # Create the bounding box from the values we found
-    bb_vertices = bounding_box.data.vertices
-
-    bb_vertices[0].co = lowest_x, lowest_y, lowest_z
-    bb_vertices[1].co = lowest_x, highest_y, lowest_z
-    bb_vertices[2].co = highest_x, lowest_y, lowest_z
-    bb_vertices[3].co = highest_x, highest_y, lowest_z
-    bb_vertices[4].co = lowest_x, lowest_y, highest_z
-    bb_vertices[5].co = lowest_x, highest_y, highest_z
-    bb_vertices[6].co = highest_x, lowest_y, highest_z
-    bb_vertices[7].co = highest_x, highest_y, highest_z
-
-    print(bb_vertices[0].co)
-
-    # Sellect bounding box, so we can adjus the camera to it
     bounding_box.select_set(True)
+    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
+    bounding_box.location = pivot.location
+
+    bounding_box.dimensions = (2 * dim_x, 2 * dim_y, 2 * dim_z)
 
     best_angle = 0
     best_scale = 0.0
@@ -404,6 +428,9 @@ def position_camera(models, pivot, nla_tracks, angle_count):
     pivot.rotation_euler = (0, 0, radians(best_angle))
     bpy.ops.view3d.camera_to_view_selected()
 
+    # Set bounding box as invisible for renderer
+    bounding_box.hide_render = True
+
     # Return to the starting position
     pivot.rotation_euler = (0, 0, 0)
 
@@ -415,7 +442,7 @@ def render_frame(frame_num, pivot, track_name, angle_count, legacy):
 
     filename = bpy.path.basename(bpy.data.filepath).split('.')[0]
 
-    path = "//%s/%s/%s_" % (filename, track_name, str(frame_num))
+    path = "//%s/%s/%s_" % (filename, track_name, str(frame_num).zfill(3))
 
     scene = bpy.context.scene
     scene.frame_set(frame_num)
@@ -434,7 +461,7 @@ def render_frame(frame_num, pivot, track_name, angle_count, legacy):
         angle = angle_distance * index
         pivot.rotation_euler = (0, 0, radians(angle))
 
-        scene.render.filepath = "%s%s" % (path, str(angle))
+        scene.render.filepath = "%s%03i_%03.f.png" % (path, index, angle)
         bpy.ops.render.render(write_still=True)
 
         index += 1
@@ -461,8 +488,6 @@ def render_animations(pivot, tracks, angle_count, animation_frame_count, legacy)
         for index in range(animation_frames):
 
             rendered_frame = start_frame + int(index * frame_distance)
-
-            # print(rendered_frame)
 
             render_frame(rendered_frame, pivot, track.name, angle_count, legacy)
 
