@@ -18,20 +18,20 @@ nyan is only used for the *definition* and *composition* of game data. Everythin
 
 ## Contents
 
-Modders coming from AoE2 should read our [Quickstart Guide](Quickstart-Guide-for-AoE2-modders).
+Modders coming from AoE2 should read our [Quickstart Guide](quickstart_guide.md).
 
 The *General* section provides you with the basic language concepts of nyan. This is a must-read, if you plan on writing large-scale mods.
 
-* [Objects](Objects)
-  * [Inheritance](https://github.com/SFTtech/openage/wiki/Objects#inheritance)
-  * [Abstract Objects](https://github.com/SFTtech/openage/wiki/Objects#abstract-objects)
-  * [Nested Objects](https://github.com/SFTtech/openage/wiki/Objects#nested-objects)
-* [Patches](Patches)
-  * [Patch Application](https://github.com/SFTtech/openage/wiki/Patches#applying-a-patch)
-  * [Patching a Patch](https://github.com/SFTtech/openage/wiki/Patches#patching-a-patch)
-  * [Patching Inheritance](https://github.com/SFTtech/openage/wiki/Patches#adding-inheritance)
-* [Data Types](Data-Types)
-* [Namespaces](Namespaces)
+* [Objects](objects.md)
+  * [Inheritance](objects.md#inheritance)
+  * [Abstract Objects](objects.md#abstract-objects)
+  * [Nested Objects](objects.md#nested-objects)
+* [Patches](patches.md)
+  * [Patch Application](patches.md#applying-a-patch)
+  * [Patching a Patch](patches.md#patching-a-patch)
+  * [Patching Inheritance](patches.md#adding-inheritance)
+* [Data Types](data_types.md)
+* [Namespaces](namespaces.md)
 
 In the *API* section, we explain how core functionality of the engine can be accessed by your mods. These tutorials will explain how to create new units, buildings, abilities, techs and more. Furthermore, you will learn how to make the game register your mod and apply your changes.
 

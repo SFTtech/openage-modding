@@ -14,7 +14,7 @@ ObjectName():
 ```
 The example above shows the initial declaration of a nyan object. A nyan object is a named group of key-value pairs. The name of the group is the nyan object name (in this example: `ObjectName`). Key-value pairs assigned in this object are called *members*. The number of members per object is unlimited. Each initial definition of a member must be annotated with a name, which is used as an identifier, and a type. Members can have no value (see [Abstract objects](#abstract-objects)).
 
-There must not be two members with the same name in an object. The order of the members does not matter. A member's type determines which vales can be assigned to it. The chapter [Data Types](Data-Types) explains the types offered by nyan.
+There must not be two members with the same name in an object. The order of the members does not matter. A member's type determines which vales can be assigned to it. The chapter [Data Types](data_types.md) explains the types offered by nyan.
 
 Comments are denoted by a `#` and can be placed after the declaration of a member in the same line. The nyan interpreter will skip everything in the line after reading the `#` character. 
 
@@ -82,7 +82,7 @@ ChildObject(BaseObject):
     child_member : float = 12.65
 ```
 
-In this example `parent_member` is not reassigned, but changed by using the `+=` operator. The value of `parent_member` in `ChildObject` is now `7`, while it is still `2` in `BaseObject`. The available operations for each type can be found in the chapter [Data Types](Data-Types).
+In this example `parent_member` is not reassigned, but changed by using the `+=` operator. The value of `parent_member` in `ChildObject` is now `7`, while it is still `2` in `BaseObject`. The available operations for each type can be found in the chapter [Data Types](data_types.md).
 
 ### Multiple Inheritance
 
@@ -155,7 +155,7 @@ The above example is only one of the possible solutions. `Intermediate0.setting`
 
 ## Patches
 
-A special variation of a normal nyan object is the *patch*. Patches are used to change member values of an object or add additional members. They are discussed in detail in the chapter [Patches](Patches).
+A special variation of a normal nyan object is the *patch*. Patches are used to change member values of an object or add additional members. They are discussed in detail in the chapter [Patches](patches.md).
 
 ## Abstract Objects
 
